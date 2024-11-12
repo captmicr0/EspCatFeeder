@@ -91,24 +91,24 @@ void feedPortionNonBlockingLoop()
   }
 }
 
-bool feedPortion()
+bool feedPortion(unsigned long count)
 {
-  Serial.println("Adding 1 portion to portionsLeftToFeed");
-  portionsLeftToFeed = portionsLeftToFeed + 1;
+  Serial.println("Adding " + String(count) + " portions to portionsLeftToFeed");
+  portionsLeftToFeed = portionsLeftToFeed + count;
   return true;
 }
 
 // Function that will run at specific times
-void runAtTime(String currentTime) {
-  Serial.println("Running scheduled task... Current time: " + currentTime);
-  feedPortion();
+void runAtTime(String scheduledTime) {
+  Serial.println("Running at scheduled time: " + scheduledTime);
+  feedPortion(scheduledTime.substring(scheduledTime.indexOf('-') + 1).toInt());
 }
 
 // Function to compare current time with scheduled times
 void checkScheduledTimes(String currentTime) {
   for (int i = 0; i < numTimes; i++) {
-    if (currentTime == scheduledTimes[i]) {
-      runAtTime(currentTime);
+    if (currentTime == scheduledTimes[i].substring(0, scheduledTimes[i].indexOf('-'))) {
+      runAtTime(scheduledTimes[i]);
       delay(60000); // Delay to prevent the task from running multiple times in the same minute
     }
   }
@@ -138,18 +138,20 @@ String getCurrentTimezone() {
   }
 }
 
-void splitTimeStr(String timeStr, byte *hour, byte *minute)
+void splitTimeStr(String timeStr, byte *hour, byte *minute, byte *count)
 {
-  int delimIdx = timeStr.indexOf(':');
-  *hour = (byte)timeStr.substring(0, delimIdx).toInt();
-  *minute = (byte)timeStr.substring(delimIdx + 1).toInt();
+  int colonIdx = timeStr.indexOf(':');
+  int dashIdx = timeStr.indexOf('-');
+  *hour = (byte)timeStr.substring(0, colonIdx).toInt();
+  *minute = (byte)timeStr.substring(colonIdx + 1, dashIdx).toInt();
+  *count = (byte)timeStr.substring(dashIdx + 1).toInt();
 }
 
-String buildTimeStr(byte hour, byte minute)
+String buildTimeStr(byte hour, byte minute, byte count)
 {
-  char timeStr[8]; // Buffer to hold "HH:MM" format string
-  memset(&timeStr, 0, 8);
-  sprintf(timeStr, "%02d:%02d", hour, minute);
+  char timeStr[10]; // Buffer to hold "HH:MM-CC" format string
+  memset(&timeStr, 0, 10);
+  sprintf(timeStr, "%02d:%02d-%02d", hour, minute, count);
   return String(timeStr);
 }
 
@@ -219,7 +221,7 @@ void setTimezone(String tz) {
 bool saveTimesToEEPROM()
 {
   Serial.println("Saving times to EEPROM...");
-  EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 2) + 16);
+  EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 3) + 16);
   
   int addr = 0;
 
@@ -240,10 +242,11 @@ bool saveTimesToEEPROM()
   Serial.println("numTimes = " + String(numTimes));
 
   for (int i = 0; i < numTimes; i++) {
-    byte h = 0; byte m = 0;
-    splitTimeStr(scheduledTimes[i], &h, &m);
+    byte h = 0; byte m = 0; byte c = 0;
+    splitTimeStr(scheduledTimes[i], &h, &m, &c);
     EEPROM.put(addr, h); addr += sizeof(byte);
     EEPROM.put(addr, m); addr += sizeof(byte);
+    EEPROM.put(addr, c); addr += sizeof(byte);
     Serial.println("Saved scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
   }
 
@@ -257,7 +260,7 @@ bool saveTimesToEEPROM()
 bool loadTimesFromEEPROM()
 {
   Serial.println("Loading times from EEPROM...");
-  EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 2) + 16);
+  EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 3) + 16);
   
   int addr = 0;
 
@@ -281,10 +284,11 @@ bool loadTimesFromEEPROM()
   Serial.println("numTimes = " + String(numTimes));
 
   for (int i = 0; i < numTimes; i++) {
-    byte h = 0; byte m = 0;
+    byte h = 0; byte m = 0; byte c = 0;
     EEPROM.get(addr, h); addr += sizeof(byte);
     EEPROM.get(addr, m); addr += sizeof(byte);
-    scheduledTimes[i] = buildTimeStr(h, m);
+    EEPROM.get(addr, c); addr += sizeof(byte);
+    scheduledTimes[i] = buildTimeStr(h, m, c);
     Serial.println("Loaded scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
   }
 
@@ -296,28 +300,26 @@ bool loadTimesFromEEPROM()
 // OTA status debug functions
 unsigned long ota_progress_millis = 0;
 
+// Log when OTA has started
 void onOTAStart() {
-  // Log when OTA has started
   Serial.println("OTA update started!");
-  // <Add your own code here>
 }
 
+// Log every 1 second
 void onOTAProgress(size_t current, size_t final) {
-  // Log every 1 second
   if (millis() - ota_progress_millis > 1000) {
     ota_progress_millis = millis();
     Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
   }
 }
 
+// Log when OTA has finished
 void onOTAEnd(bool success) {
-  // Log when OTA has finished
   if (success) {
     Serial.println("OTA update finished successfully!");
   } else {
     Serial.println("There was an error during OTA update!");
   }
-  // <Add your own code here>
 }
 
 void setup()
@@ -337,13 +339,7 @@ void setup()
   ESPAsync_WiFiManager wifiManager(&webServer, &dnsServer, "My-ESP8266");
   wifiManager.autoConnect();
 
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    Serial.print("Connected. Local IP: ");
-    Serial.println(WiFi.localIP());
-  }
-  else
-  {
+  if (WiFi.status() != WL_CONNECTED) {
     Serial.println(wifiManager.getStatus(WiFi.status()));
     Serial.println("Can't connect! Enter WiFi config mode...");
     Serial.println("Restart...");
@@ -351,7 +347,7 @@ void setup()
   }
 #endif
 
-  Serial.println("Connected to WiFi");
+  Serial.println("Connected to WiFi.");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
@@ -371,7 +367,7 @@ void setup()
 
   webServer.on("/feedPortion", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "feeding portion");
-    if (feedPortion()) {
+    if (feedPortion(1)) {
       request->send(200, "text/plain", "feeding portion");
     } else {
       request->send(500, "text/plain", "Error: alreadying feeding portion.");
@@ -431,9 +427,10 @@ void setup()
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
+  Serial.println("ElegantOTA started.");
 
   webServer.begin();
-  Serial.println("HTTP server started");
+  Serial.println("HTTP server started.");
 
   loadTimesFromEEPROM();
   
@@ -444,7 +441,7 @@ void setup()
 const int timeFnInterval = 10000; // interval to run function
 unsigned long timeFnPrevTime = 0; // last time function was ran
 
-const int feedFnInterval = 50; // interval to run function
+const int feedFnInterval = 10; // interval to run function
 unsigned long feedFnPrevTime = 0; // last time function was ran
 
 void loop()

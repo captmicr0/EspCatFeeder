@@ -11,18 +11,20 @@
             letter-spacing: 2px;
             margin-right: 10px;
         }
-		button {
+		button, #portionCnt {
             font-size: 20px;
             letter-spacing: 2px;
 		}
-		#feedPortion {
-   			display: flex;
-   			align-items: center;
-			justify-content: center;
+		#portionCnt {
+            display: flex;
+            margin-right: 10px;
 		}
-		#feedPortion, #feedingTimes, #addFeedingTime {
-			max-width: 400px;
+		#feedPortion {
+			justify-content: center;
 			width: 100%;
+		}
+		body, #feedPortion, #feedingTimes, #addFeedingTime {
+			max-width: 400px;
 		}
         #feedPortion, #feedingTimes div, #addFeedingTime {
             margin-bottom: 10px;
@@ -34,6 +36,9 @@
         }
 		#setTz button {
             margin-top: 10px;
+		}
+		span {
+			white-space: pre;
 		}
     </style>
     <script>
@@ -49,14 +54,15 @@
 		
 		// Function to add a feeding time to the list
 		function insertFeedingTime(time24hr) {
-			var [h, m] = time24hr.split(":"); h = parseInt(h); m = parseInt(m);
+			var [hm, cnt] = time24hr.split("-"); cnt = parseInt(cnt);
+			var [h, m] = hm.split(":"); h = parseInt(h); m = parseInt(m); 
 			var ampmTime = ((h % 12) ? (h % 12) : 12) + ":" + (((m / 10) < 1) ? ('0' + m) : m) + ((h >= 12) ? ' PM' : ' AM');
 			
             if (time24hr) {
                 var item = document.createElement('div');
 				
 				var timeSpan = document.createElement('span');
-                timeSpan.textContent = ampmTime;
+                timeSpan.textContent = ampmTime + '   [' + cnt + 'x]';
                 timeSpan.classList.add('digital-time');
 
                 var removeButton = document.createElement('button');
@@ -85,7 +91,8 @@
 		// Callback to add a feeding time to the list
         function addFeedingTime() {
             var timeInput = document.getElementById('timeInput');
-            var timeValue = timeInput.value;
+            var portionCnt = document.getElementById('portionCnt');
+            var timeValue = timeInput.value + '-' + portionCnt.value;
 			
             if (timeValue) {
 				fetch('/addTime?time='+timeValue)
@@ -199,7 +206,8 @@
 
 	<hr/>
 	<div id="addFeedingTime">
-		<input type="time" class="digital-time" id="timeInput" required>
+		<input type="time" id="timeInput" class="digital-time" required></input>
+		<input type="number" id="portionCnt" min="1" max="9" step="1" value="1" required></input>
 		<button id="addTimeBtn">Add Time</button>
 	</div>
 	
