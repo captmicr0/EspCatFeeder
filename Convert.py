@@ -4,9 +4,9 @@ import requests
 import os
 
 input_dir = "."              # Sub folder of webfiles
-output_dir = "HTML_minified"
+output_dir = "HTML_minified.h"
 
-f_output = open("output_dir", "w")
+f_output = open(output_dir, "w")
 URL_minify_js   = 'https://www.toptal.com/developers/javascript-minifier/api/raw' # Website to minify javascript
 URL_minify_html = 'https://www.toptal.com/developers/html-minifier/api/raw'        # Website to minify html
 URL_minify_css  = 'https://www.toptal.com/developers/cssminifier/api/raw'         # Website to minify css
