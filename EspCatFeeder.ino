@@ -138,23 +138,6 @@ String getCurrentTimezone() {
   }
 }
 
-void splitTimeStr(String timeStr, byte *hour, byte *minute, byte *count)
-{
-  int colonIdx = timeStr.indexOf(':');
-  int dashIdx = timeStr.indexOf('-');
-  *hour = (byte)timeStr.substring(0, colonIdx).toInt();
-  *minute = (byte)timeStr.substring(colonIdx + 1, dashIdx).toInt();
-  *count = (byte)timeStr.substring(dashIdx + 1).toInt();
-}
-
-String buildTimeStr(byte hour, byte minute, byte count)
-{
-  char timeStr[10]; // Buffer to hold "HH:MM-CC" format string
-  memset(&timeStr, 0, 10);
-  sprintf(timeStr, "%02d:%02d-%02d", hour, minute, count);
-  return String(timeStr);
-}
-
 // Function to add a time to the list
 bool addTime(String timeToAdd) {
   if (numTimes < (MAX_SCHEDULED_TIMES-1)) {
@@ -215,6 +198,23 @@ void setTimezone(String tz) {
   configTime(tz.c_str(), "pool.ntp.org", "time.nist.gov");
   Serial.println("Timezone set to: " + tz);
   Serial.println("Current Time: " + getCurrentTime());
+}
+
+void splitTimeStr(String timeStr, byte *hour, byte *minute, byte *count)
+{
+  int colonIdx = timeStr.indexOf(':');
+  int dashIdx = timeStr.indexOf('-');
+  *hour = (byte)timeStr.substring(0, colonIdx).toInt();
+  *minute = (byte)timeStr.substring(colonIdx + 1, dashIdx).toInt();
+  *count = (byte)timeStr.substring(dashIdx + 1).toInt();
+}
+
+String buildTimeStr(byte hour, byte minute, byte count)
+{
+  char timeStr[10]; // Buffer to hold "HH:MM-CC" format string
+  memset(&timeStr, 0, 10);
+  sprintf(timeStr, "%02d:%02d-%02d", hour, minute, count);
+  return String(timeStr);
 }
 
 // Function to save scheduleTimes to EEPROM
