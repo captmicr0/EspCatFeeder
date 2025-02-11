@@ -9,7 +9,8 @@ RUN pip install requests
 
 ENV HTTP_ADDR=''
 ENV HTTP_PORT=8000
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE $HTTP_PORT
 
-CMD ["python", "FeedDirector.py"]
+CMD ["python", "-u", "FeedDirector.py"]
