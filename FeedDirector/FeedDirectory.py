@@ -160,6 +160,16 @@ class RequestHandler(BaseHTTPRequestHandler):
 def feedLoop():
     global feeders, times
 
+    def send_request(feeder, portionCnt):
+        results = []
+        for _ in range(portionCnt):
+            try:
+                response = requests.get(feeder.strip('/') + '/feedPortion')
+                results.append(f"[{response.status_code},{response.text}]")
+            except:
+                results.append("[ERROR]")
+        return feeder, results
+
     t = threading.current_thread()
     while getattr(t, "do_run", True):
         now = datetime.now().time().strftime('%H:%M')
@@ -167,17 +177,14 @@ def feedLoop():
             portionTime, portionCnt = timestr.split('-')
             portionCnt = int(portionCnt)
             if now == portionTime:
-                for feeder in feeders:
-                    print(f"Feeding [{feeder}] {portionCnt} portions... ", end='')
-                    for _ in range(portionCnt):
-                        try:
-                            response = requests.get(feeder.strip('/') + '/feedPortion')
-                            print(f"[{response.status_code},{response.text}]. ", end='')
-                        except:
-                            print(f"[ERROR]. ", end='')
-                    print()
+                with ThreadPoolExecutor() as executor:
+                    futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
+                    for future in futures:
+                        feeder, results = future.result()
+                        print(f"Feeding [{feeder}] {portionCnt} portions... ", end='')
+                        print(' '.join(results))
                 secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
-                print(f"Sleeping {secondsToNextM}+10 seconds (till next minunte)...")
+                print(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
                 time.sleep(secondsToNextM + 10)
         time.sleep(1)
 
