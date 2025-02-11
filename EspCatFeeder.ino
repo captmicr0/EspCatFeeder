@@ -5,7 +5,6 @@
 
 #define USE_ESP_WIFIMANAGER_NTP true
 
-#include <ElegantOTA.h>
 #include <ESPAsync_WiFiManager.h>
 
 #include <WiFiUdp.h>
@@ -18,7 +17,7 @@
 // NTP client setup
 #define DEFAULT_TIMEZONE TZ_America_New_York
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000); // Time offset will be set dynamically, update every 60s
+NTPClient timeClient(ntpUDP, "time.nist.gov,pool.ntp.org,time.google.com", 0, 10000); // Time offset will be set dynamically, update every 10s
 
 // Define the times to run in 24-hour format (HH:MM)
 #define MAX_SCHEDULED_TIMES 256
@@ -42,6 +41,27 @@ unsigned long feedingState = 0;        // state to track feeding
 
 unsigned long portionsLeftToFeed = 0;        // how many portions are left to feed
 
+// WebSerial
+//#define EnableWebSerial
+
+#ifdef EnableWebSerial
+#include <WebSerial.h>
+bool WebSerialActive = 0;
+#define BothPrintLn(x) { Serial.println(x); if (WebSerialActive) WebSerial.println(x); }
+#define BothPrint(x) { Serial.print(x); if (WebSerialActive) WebSerial.print(x); }
+#else
+#define BothPrintLn(x) { Serial.println(x); }
+#define BothPrint(x) { Serial.print(x); }
+#endif
+
+// ElegantOTA
+#define EnableElegantOTA //comment out to remove ElegantOTA
+
+#ifdef EnableElegantOTA
+#include <ElegantOTA.h>
+#endif
+
+// feeder initialization. put into known state.
 void feedInit()
 {
   pinMode(LED_PIN, OUTPUT);
@@ -72,7 +92,7 @@ void feedPortionNonBlockingLoop()
   if (portionsLeftToFeed > 0)
   {
     if (feedingState == 0) {
-      Serial.println("Feeding 1 portion");
+      BothPrintLn("Feeding 1 portion");
       feedingState = 1;
     } else if (feedingState == 1) {
       digitalWrite(MOTOR_PIN, HIGH); // turn on motor
@@ -93,23 +113,31 @@ void feedPortionNonBlockingLoop()
 
 bool feedPortion(unsigned long count)
 {
-  Serial.println("Adding " + String(count) + " portions to portionsLeftToFeed");
+  BothPrintLn("Adding " + String(count) + " portions to portionsLeftToFeed");
   portionsLeftToFeed = portionsLeftToFeed + count;
   return true;
 }
 
+void syncTo10SecondStart() {
+  while (timeClient.getMillis() % 10000 != 0) {
+    delay(1);
+  }
+}
+
 // Function that will run at specific times
 void runAtTime(String scheduledTime) {
-  Serial.println("Running at scheduled time: " + scheduledTime);
+  syncToSecondStart();
+  BothPrintLn("Running at scheduled time: " + scheduledTime);
   feedPortion(scheduledTime.substring(scheduledTime.indexOf('-') + 1).toInt());
 }
 
 // Function to compare current time with scheduled times
 void checkScheduledTimes(String currentTime) {
   for (int i = 0; i < numTimes; i++) {
-    if (currentTime == scheduledTimes[i].substring(0, scheduledTimes[i].indexOf('-'))) {
+    String checkTime = scheduledTimes[i].substring(0, scheduledTimes[i].indexOf('-'));
+    if (currentTime == checkTime) {
       runAtTime(scheduledTimes[i]);
-      delay(60000); // Delay to prevent the task from running multiple times in the same minute
+      delay(62000); // Delay to prevent the task from running multiple times in the same minute
     }
   }
 }
@@ -119,7 +147,7 @@ String getCurrentTime() {
   time_t now;
   struct tm timeInfo;
   if (!getLocalTime(&timeInfo)) {
-    Serial.println("Failed to obtain time");
+    BothPrintLn("Failed to obtain time");
     return "Failed to obtain time";
   }
 
@@ -143,10 +171,10 @@ bool addTime(String timeToAdd) {
   if (numTimes < (MAX_SCHEDULED_TIMES-1)) {
     scheduledTimes[numTimes] = timeToAdd;
     numTimes++;
-    Serial.println("Time added: " + timeToAdd);
+    BothPrintLn("Time added: " + timeToAdd);
     return true;
   } else {
-    Serial.println("Error: List is full.");
+    BothPrintLn("Error: List is full.");
     return false;
   }
 }
@@ -160,11 +188,11 @@ bool removeTime(String timeToRemove) {
         scheduledTimes[j] = scheduledTimes[j + 1];
       }
       numTimes--;
-      Serial.println("Time removed: " + timeToRemove);
+      BothPrintLn("Time removed: " + timeToRemove);
       return true;
     }
   }
-  Serial.println("Error: Time not found.");
+  BothPrintLn("Error: Time not found.");
   return false;
 }
 
@@ -196,8 +224,8 @@ void setTimezone(String tz) {
   setenv("TZ", tz.c_str(), 1);  // Convert String to C-string
   tzset();
   configTime(tz.c_str(), "pool.ntp.org", "time.nist.gov");
-  Serial.println("Timezone set to: " + tz);
-  Serial.println("Current Time: " + getCurrentTime());
+  BothPrintLn("Timezone set to: " + tz);
+  BothPrintLn("Current Time: " + getCurrentTime());
 }
 
 void splitTimeStr(String timeStr, byte *hour, byte *minute, byte *count)
@@ -220,14 +248,14 @@ String buildTimeStr(byte hour, byte minute, byte count)
 // Function to save scheduleTimes to EEPROM
 bool saveTimesToEEPROM()
 {
-  Serial.println("Saving times to EEPROM...");
+  BothPrintLn("Saving times to EEPROM...");
   EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 3) + 16);
   
   int addr = 0;
 
   int check_val = 23456;
   EEPROM.put(addr, check_val); addr += sizeof(int);
-  Serial.println("check_val = " + String(check_val));
+  BothPrintLn("check_val = " + String(check_val));
   
   String tz = getCurrentTimezone();
   if (tz.length() >= 128) tz = DEFAULT_TIMEZONE;
@@ -235,11 +263,11 @@ bool saveTimesToEEPROM()
   tz.toCharArray(tz_cstr, 128);
   for (int i = 0; i < 128; i++)
     EEPROM.write(addr + i, tz_cstr[i]);
-  Serial.println("tz_cstr = " + String(tz_cstr));
+  BothPrintLn("tz_cstr = " + String(tz_cstr));
   addr += (sizeof(char) * 128);
 
   EEPROM.put(addr, numTimes); addr += sizeof(int);
-  Serial.println("numTimes = " + String(numTimes));
+  BothPrintLn("numTimes = " + String(numTimes));
 
   for (int i = 0; i < numTimes; i++) {
     byte h = 0; byte m = 0; byte c = 0;
@@ -247,19 +275,19 @@ bool saveTimesToEEPROM()
     EEPROM.put(addr, h); addr += sizeof(byte);
     EEPROM.put(addr, m); addr += sizeof(byte);
     EEPROM.put(addr, c); addr += sizeof(byte);
-    Serial.println("Saved scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
+    BothPrintLn("Saved scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
   }
 
   EEPROM.commit();
   EEPROM.end();
-  Serial.println("Done!");
+  BothPrintLn("Done!");
   return true;
 }
 
 // Function to load scheduleTimes from EEPROM
 bool loadTimesFromEEPROM()
 {
-  Serial.println("Loading times from EEPROM...");
+  BothPrintLn("Loading times from EEPROM...");
   EEPROM.begin(sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 3) + 16);
   
   int addr = 0;
@@ -267,14 +295,14 @@ bool loadTimesFromEEPROM()
   int check_val = 0;
   EEPROM.get(addr, check_val); addr += sizeof(int);
   if (check_val != 23456) {
-    Serial.println("check_val = " + String(check_val));
-    Serial.println("INVALID!!! clearing eeprom data!!!");
+    BothPrintLn("check_val = " + String(check_val));
+    BothPrintLn("INVALID!!! clearing eeprom data!!!");
     for (int i = 0; i < sizeof(int) + (sizeof(char) * 128) + sizeof(int) + (MAX_SCHEDULED_TIMES * sizeof(byte) * 3) + 16; i++) {
       EEPROM.write(addr + i, 0);
     }
     EEPROM.commit();
     EEPROM.end();
-    Serial.println("Done erasing EEPROM.");
+    BothPrintLn("Done erasing EEPROM.");
     return false;
   }
 
@@ -282,12 +310,12 @@ bool loadTimesFromEEPROM()
   memset(tz_cstr, 0, 129);
   for (int i = 0; i < 128; i++)
     tz_cstr[i] = (char)EEPROM.read(addr + i);
-  Serial.println("tz_cstr = " + String(tz_cstr));
+  BothPrintLn("tz_cstr = " + String(tz_cstr));
   if (strlen(tz_cstr) > 0) setTimezone(tz_cstr);
   addr += (sizeof(char) * 128);
 
   EEPROM.get(addr, numTimes); addr += sizeof(int);
-  Serial.println("numTimes = " + String(numTimes));
+  BothPrintLn("numTimes = " + String(numTimes));
 
   for (int i = 0; i < numTimes; i++) {
     byte h = 0; byte m = 0; byte c = 0;
@@ -295,38 +323,40 @@ bool loadTimesFromEEPROM()
     EEPROM.get(addr, m); addr += sizeof(byte);
     EEPROM.get(addr, c); addr += sizeof(byte);
     scheduledTimes[i] = buildTimeStr(h, m, c);
-    Serial.println("Loaded scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
+    BothPrintLn("Loaded scheduledTimes[" + String(i) + "] = " + scheduledTimes[i]);
   }
 
   EEPROM.end();
-  Serial.println("Done!");
+  BothPrintLn("Done!");
   return true;
 }
 
+#ifdef EnableElegantOTA
 // OTA status debug functions
 unsigned long ota_progress_millis = 0;
 
 // Log when OTA has started
 void onOTAStart() {
-  Serial.println("OTA update started!");
+  BothPrintLn("OTA update started!");
 }
 
 // Log every 1 second
 void onOTAProgress(size_t current, size_t final) {
   if (millis() - ota_progress_millis > 1000) {
     ota_progress_millis = millis();
-    Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+    BothPrintLn("OTA Progress Current: " + String(current) + " bytes, Final: " + String(final) + "bytes\n");
   }
 }
 
 // Log when OTA has finished
 void onOTAEnd(bool success) {
   if (success) {
-    Serial.println("OTA update finished successfully!");
+    BothPrintLn("OTA update finished successfully!");
   } else {
-    Serial.println("There was an error during OTA update!");
+    BothPrintLn("There was an error during OTA update!");
   }
 }
+#endif
 
 void setup()
 {
@@ -334,29 +364,28 @@ void setup()
   while (!Serial) delay(10);
   delay(200);
 
-//#define HARDCODE_WIFI // uncomment to use hardcoded wifi credentials
+#define HARDCODE_WIFI // uncomment to use hardcoded wifi credentials
 #ifdef HARDCODE_WIFI
   #include "WIFI_password.h"
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.println("Connecting to WiFi...");
+    BothPrintLn("Connecting to WiFi...");
   }
 #else
   ESPAsync_WiFiManager wifiManager(&webServer, &dnsServer, "My-ESP8266");
   wifiManager.autoConnect();
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println(wifiManager.getStatus(WiFi.status()));
-    Serial.println("Can't connect! Enter WiFi config mode...");
-    Serial.println("Restart...");
+    BothPrintLn(wifiManager.getStatus(WiFi.status()));
+    BothPrintLn("Can't connect! Enter WiFi config mode...");
+    BothPrintLn("Restart...");
     ESP.reset();
   }
 #endif
 
-  Serial.println("Connected to WiFi.");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  BothPrintLn("Connected to WiFi.");
+  BothPrintLn("IP address: " + WiFi.localIP().toString());
 
   setTimezone(DEFAULT_TIMEZONE);
   timeClient.begin();
@@ -430,22 +459,33 @@ void setup()
     request->send(200, "text/plain", tz);
   });
 
+  #ifdef EnableElegantOTA
   ElegantOTA.begin(&webServer);
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
-  Serial.println("ElegantOTA started.");
+  BothPrintLn("ElegantOTA started.");
+  #endif
+
+  #ifdef EnableWebSerial
+  WebSerial.begin(&webServer);
+  BothPrintLn("WebSerial started.");
+  #endif
 
   webServer.begin();
-  Serial.println("HTTP server started.");
+  BothPrintLn("HTTP server started.");
+
+  #ifdef EnableWebSerial
+  WebSerialActive = true;
+  #endif
 
   loadTimesFromEEPROM();
   
-  Serial.println("Feeder initializing...");
+  BothPrintLn("Feeder initializing...");
   feedInit();
 }
 
-const int timeFnInterval = 10000; // interval to run function
+const int timeFnInterval = 1000; // interval to run function
 unsigned long timeFnPrevTime = 0; // last time function was ran
 
 const int feedFnInterval = 10; // interval to run function
@@ -466,6 +506,13 @@ void loop()
     feedPortionNonBlockingLoop();
   }
   
+  #ifdef EnableElegantOTA
   ElegantOTA.loop();
+  #endif
+
+  #ifdef EnableWebSerial
+  WebSerial.loop();
+  #endif
+  
   delay(10);
 }

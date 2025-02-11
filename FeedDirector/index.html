@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Feeder Director</title>
+	<style>
+        .digital-time {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 24px;
+            letter-spacing: 2px;
+            margin-right: 10px;
+        }
+		button, #portionCnt {
+            font-size: 20px;
+            letter-spacing: 2px;
+		}
+		#portionCnt {
+            display: flex;
+            margin-right: 10px;
+		}
+		#feedPortion {
+			justify-content: center;
+			width: 100%;
+		}
+		body, #feedPortion, #feedingTimes, #feeders, #addFeedingTime {
+			max-width: 400px;
+		}
+        #feedPortion, #feedingTimes div, #feeders div, #addFeedingTime {
+            margin-bottom: 10px;
+            display: flex;
+        }
+        #feedingTimes button {
+            float: right;
+			margin-left: auto;
+        }
+        #feeders button {
+            float: right;
+			margin-left: auto;
+        }
+        #feeders span {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 24px;
+        }
+		#setTz button, #addFeeder button {
+            margin-top: 10px;
+		}
+		span {
+			white-space: pre;
+		}
+    </style>
+    <script type="text/javascript">
+    async function getFeeders() {
+        try {
+            const response = await fetch('/getFeeders', {method:'POST'});
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            const feeders = await response.json();
+            return feeders;
+        } catch (error) {
+            console.error('Error fetching feeders:', error);
+            return [];
+        }
+    }
+
+    async function addFeeder() {
+        const feeder = document.getElementById('feeder').value;
+        
+        if (feeder.length > 0) {
+            const data = new URLSearchParams();
+            data.append('feeder', feeder);
+
+            try {
+                const response = await fetch('/addFeeder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: data
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result) {
+                    insertFeeder(feeder);
+                } else {
+                    console.error('Error adding feeder:', result);
+                }
+                document.getElementById('feeder').value = '';
+                return result;
+            } catch (error) {
+                console.error('Error adding feeder:', error);
+                return false;
+            }
+        }
+    }
+
+    async function removeFeeder(feeder, item) {
+        const data = new URLSearchParams();
+        data.append('feeder', feeder);
+
+        try {
+            const response = await fetch('/removeFeeder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result) {
+                item.remove();
+            } else {
+                console.error('Error removing feeder:', result);
+            }
+            return result;
+        } catch (error) {
+            console.error('Error removing feeder:', error);
+            return false;
+        }
+    }
+
+    function insertFeeder(feeder) {
+        var item = document.createElement('div');
+
+        var feederurl = document.createElement('span');
+        feederurl.textContent = feeder;
+
+        var removeButton = document.createElement('button');
+        removeButton.textContent = 'Remove';
+        removeButton.onclick = function() {
+            removeFeeder(feeder, item);
+        };
+
+        item.appendChild(feederurl);
+        item.appendChild(removeButton);
+        document.getElementById('feeders').appendChild(item);
+    }
+
+    async function getTimes() {
+        try {
+            const response = await fetch('/getTimes', {method:'POST'});
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            const times = await response.json();
+            return times;
+        } catch (error) {
+            console.error('Error fetching times:', error);
+            return [];
+        }
+    }
+
+    async function addTime(timeValue) {
+        const data = new URLSearchParams();
+        data.append('time', timeValue);
+
+        try {
+            const response = await fetch('/addTime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result) {
+                insertTime(timeValue);
+                timeInput.value = '';
+                console.log('Added feeding time successfully');
+            } else {
+                console.error('Error adding time:', result);
+            }
+            return result;
+        } catch (error) {
+            console.error('Error adding time:', error);
+            return false;
+        }
+    }
+
+    async function removeTime(time24h, item) {
+        const data = new URLSearchParams();
+        data.append('time', time24h);
+
+        try {
+            const response = await fetch('/removeTime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result) {
+                item.remove();
+                console.log('Removed feeding time successfully');
+            } else {
+                console.error('Error removing time:', result);
+            }
+            return result;
+        } catch (error) {
+            console.error('Error removing time:', error);
+            return false;
+        }
+    }
+
+    
+    function insertTime(time24hr) {
+        var [hm, cnt] = time24hr.split("-"); cnt = parseInt(cnt);
+        var [h, m] = hm.split(":"); h = parseInt(h); m = parseInt(m); 
+        var ampmTime = ((h % 12) ? (h % 12) : 12) + ":" + (((m / 10) < 1) ? ('0' + m) : m) + ((h >= 12) ? ' PM' : ' AM');
+        
+        if (time24hr) {
+            var item = document.createElement('div');
+            
+            var timeSpan = document.createElement('span');
+            timeSpan.textContent = ampmTime + '   [' + cnt + 'x]';
+            timeSpan.classList.add('digital-time');
+
+            var removeButton = document.createElement('button');
+            removeButton.textContent = 'Remove';
+            removeButton.onclick = function() {
+                removeTime(time24hr, item);
+            };
+
+            item.appendChild(timeSpan);
+            item.appendChild(removeButton);
+            document.getElementById('feedingTimes').appendChild(item);
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', async function() {
+        document.querySelector('#feedPortion').onclick = async (e) => {
+            try {
+                const feeders = await getFeeders();
+                for (const item of feeders) {
+                    try {
+                        const response = await fetch(item + '/feedPortion');
+                        if (response.ok) {
+                            console.log('Feed portion on [' + item + '] successfully');
+                        } else {
+                            console.error('Failed to feed portion on [' + item + ']:', response);
+                        }
+                    } catch (error) {
+                        console.error('Error feeding portion on [' + item + ']:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error getting feeders:', error);
+            }
+        };
+
+        document.querySelector('#addTimeBtn').onclick = async (e) => {
+            var timeInput = document.getElementById('timeInput');
+            var portionCnt = document.getElementById('portionCnt');
+            var timeValue = timeInput.value + '-' + portionCnt.value;
+            
+            if (timeValue) {
+                await addTime(timeValue);
+            }
+        };
+
+        document.querySelector('#feeder_add').onclick = async (e) => {
+            await addFeeder();
+        };
+
+        try {
+            const feeders = await getFeeders();
+            feeders.forEach(item => { insertFeeder(item); });
+        } catch (error) {
+            console.error('Error getting feeders:', error);
+        }
+        
+        try {
+            const times = await getTimes();
+            times.forEach(item => { insertTime(item); });
+        } catch (error) {
+            console.error('Error getting times:', error);
+        }
+    });
+    </script>
+</head>
+<body>
+    <h1>Cat Feeder Director</h1>
+	
+	<hr/>
+	<button id="feedPortion">Manual Feed</button>
+
+	<hr/>
+	<div id="addFeedingTime">
+		<input type="time" id="timeInput" class="digital-time" required></input>
+		<input type="number" id="portionCnt" min="1" max="9" step="1" value="1" required></input>
+		<button id="addTimeBtn">Add Time</button>
+	</div>
+	
+    <h2>Scheduled Feeding Times:</h2>
+    <div id="feedingTimes"></div>
+	<br/>
+
+    <hr/>
+	<div id="addFeeder">
+        <input type="text" id="feeder" class="digital-time" placeholder="http://feeder-addr" required/>
+        <br/>
+        <button id="feeder_add">Add Feeder</button>
+    </div>
+
+    <h2>Cat Feeders:</h2>
+	<div id="feeders"></div>
+	<br/>
+</body>
+</html>
