@@ -202,6 +202,9 @@ def shutdownSignalHandler(args, signum=99999, frame=None):
 
 if __name__ == '__main__':
     print("[*] FeedDirector starting up")
+
+    print(f"[*] Current system time: {datetime.now().strftime("%H:%M (%I:%M %p) on %B %d, %Y")}")
+
     load_data()
 
     os.environ['FOR_DISABLE_CONSOLE_CTRL_HANDLER'] = '1'
