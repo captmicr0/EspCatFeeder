@@ -177,16 +177,16 @@ def feedLoop():
             portionTime, portionCnt = timestr.split('-')
             portionCnt = int(portionCnt)
             if now == portionTime:
-                with ThreadPoolExecutor() as executor:
+                with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
                     futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
                     for future in futures:
                         feeder, results = future.result()
                         print(f"Feeding [{feeder}] {portionCnt} portions... ", end='')
-                        print(' '.join(results))
+                        print(', '.join(results)  + '.')
                 secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
                 print(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
                 time.sleep(secondsToNextM + 10)
-        time.sleep(1)
+        time.sleep(5)
 
 def runHTTPServer(server):
     server.serve_forever()
