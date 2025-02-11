@@ -218,7 +218,7 @@ if __name__ == '__main__':
     print("[*] creating runHTTPServer thread")
     httpdThread = threading.Thread(target=runHTTPServer, args=(httpd,))
     print("[*] creating feedLoop thread")
-    feedThread = threading.Thread(target=feedLoop, args=(times,))
+    feedThread = threading.Thread(target=feedLoop)
 
     # Register the signal handlers
     print("[*] Registering SIGTERM and SIGINT signal handlers")
