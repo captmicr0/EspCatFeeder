@@ -5,7 +5,7 @@ WORKDIR /app
 COPY FeedDirector.py .
 COPY index.html .
 
-RUN pip install requests
+RUN pip install requests watchdog
 
 ENV HTTP_ADDR=''
 ENV HTTP_PORT=8000

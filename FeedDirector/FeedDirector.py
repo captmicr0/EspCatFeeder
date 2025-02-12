@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 import time
 from datetime import datetime
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 # File to store mappings persistently
 MAPPINGS_FILE = 'feederdata.json'
@@ -15,6 +17,19 @@ feeders = []
 
 # List to store all times
 times = []
+
+class MyHandler(FileSystemEventHandler):
+    def __init__(self, filename):
+        self.filename = filename
+        self.is_self_writing = False
+
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.endswith(self.filename):
+            if not self.is_self_writing:
+                print(f"[*] Feeders and times file [{MAPPINGS_FILE}] modified")
+                load_data()
+
+fileEventHandler = MyHandler(MAPPINGS_FILE)
 
 def load_data():
     global feeders, times
@@ -28,10 +43,12 @@ def load_data():
         print("[*] No save file found. Starting fresh.")
 
 def save_data():
-    global feeders, times
+    global feeders, times, fileEventHandler
+    fileEventHandler.is_self_writing = True
     with open(MAPPINGS_FILE, 'w') as f:
         json.dump({'feeders': feeders, 'times': times}, f)
         print("[*] Feeders and times saved to file.")
+    fileEventHandler.is_self_writing = False
 
 class RequestHandler(BaseHTTPRequestHandler):
     def redirect(self, url):
@@ -192,12 +209,14 @@ def runHTTPServer(server):
     server.serve_forever()
 
 def shutdownSignalHandler(args, signum=99999, frame=None):
-    httpserver, feedThread = args
+    httpserver, feedThread, observer = args
     print(f"[*] received signal {signum}. shutting down.")
     print("[*] shutting down RequestHandler")
     httpserver.shutdown()
     print("[*] shutting down feedLoop")
     feedThread.do_run = False
+    print("[*] shutting down Observer")
+    observer.stop()
     return True
 
 if __name__ == '__main__':
@@ -222,26 +241,32 @@ if __name__ == '__main__':
     httpdThread = threading.Thread(target=runHTTPServer, args=(httpd,))
     print("[*] creating feedLoop thread")
     feedThread = threading.Thread(target=feedLoop)
+    print("[*] creating Observer instance [file change monitor]")
+    observer = Observer()
+    observer.schedule(fileEventHandler, '.', recursive=False)
 
     # Register the signal handlers
     print("[*] Registering SIGTERM and SIGINT signal handlers")
-    signal.signal(signal.SIGTERM, partial(shutdownSignalHandler, (httpd, feedThread)))
-    signal.signal(signal.SIGINT, partial(shutdownSignalHandler, (httpd, feedThread)))
+    signal.signal(signal.SIGTERM, partial(shutdownSignalHandler, (httpd, feedThread, observer)))
+    signal.signal(signal.SIGINT, partial(shutdownSignalHandler, (httpd, feedThread, observer)))
 
     # Windows specific signal handler fix
     if sys.platform == "win32":
         print("[*] Registering Windows specific signal handler")
         import win32api
-        win32api.SetConsoleCtrlHandler(partial(shutdownSignalHandler, (httpd, feedThread)), True)
+        win32api.SetConsoleCtrlHandler(partial(shutdownSignalHandler, (httpd, feedThread, observer)), True)
     
     # Start threads
     print("[*] starting runHTTPServer thread")
     httpdThread.start()
     print("[*] starting feedLoop thread")
     feedThread.start()
+    print("[*] starting Observer instance [file change monitor]")
+    observer.start()
 
     # Wait for the server thread to finish
     httpdThread.join()
     feedThread.join()
+    observer.join()
 
     print("[*] FeedDirector exiting...")
