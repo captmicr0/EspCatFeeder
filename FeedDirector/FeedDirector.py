@@ -57,6 +57,9 @@ feeders = []
 # List to store all times
 times = []
 
+# List to store all the feeding events (per-run, not persistent)
+event_log = []
+
 class MyHandler(FileSystemEventHandler):
     def __init__(self, filename):
         self.filename = filename
@@ -186,6 +189,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             self.wfile.write(bytes(json.dumps(already_exist), "utf-8"))
         
+        elif self.path == '/getEventLog':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            self.wfile.write(bytes(json.dumps(event_log), "utf-8"))
+        
         else:
             self.send_error(404, "Not Found")
 
@@ -193,7 +203,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.path == "/":
             self.path = "/index.html"
         
-        # Remove leading slash and join with 'websrc' directory
+        # Remove leading slash
         file_path = self.path.lstrip('/')
         
         # Check if file exists
@@ -240,7 +250,9 @@ def feedLoop():
                     futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
                     for future in futures:
                         feeder, results = future.result()
-                        logger.info(f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}")
+                        event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
+                        logger.info(event_info)
+                        event_log.append(event_info)
                 secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
                 logger.info(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
                 time.sleep(secondsToNextM + 10)
