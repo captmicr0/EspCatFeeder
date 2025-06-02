@@ -252,7 +252,7 @@ def feedLoop():
                         feeder, results = future.result()
                         event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
                         logger.info(event_info)
-                        event_log.append(event_info)
+                        event_log.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' - ' + event_info)
                 secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
                 logger.info(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
                 time.sleep(secondsToNextM + 10)
