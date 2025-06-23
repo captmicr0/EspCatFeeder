@@ -159,7 +159,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             
             time = params.get('time', [''])[0]
 
-            already_exist = time in times
+            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
+
+            already_exist = any([True for x in times if x.startswith(time)])
             if not already_exist:
                 times.append(time)
                 save_data()
@@ -176,11 +178,35 @@ class RequestHandler(BaseHTTPRequestHandler):
             params = urllib.parse.parse_qs(post_data)
             
             time = params.get('time', [''])[0]
+
+            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
             
             already_exist = any([True for x in times if x.startswith(time)])
             if already_exist:
                 idx = [i for i, x in enumerate(times) if x.startswith(time)][0]
                 times.pop(idx)
+                save_data()
+
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+
+            self.wfile.write(bytes(json.dumps(already_exist), "utf-8"))
+        
+        elif self.path == '/modifyDaysForTime':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            params = urllib.parse.parse_qs(post_data)
+            
+            time = params.get('time', [''])[0]
+            newdays = params.get('newdays', [''])[0]
+
+            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
+            
+            already_exist = any([True for x in times if x.startswith(time)])
+            if already_exist:
+                idx = [i for i, x in enumerate(times) if x.startswith(time)][0]
+                times[idx] = '-'.join([time, newdays])
                 save_data()
 
             self.send_response(200)
@@ -238,14 +264,25 @@ def feedLoop():
             except:
                 results.append("[ERROR]")
         return feeder, results
+    
+    dayLookup = {
+        'Sun': 'Su',
+        'Mon': 'M',
+        'Tue': 'Tu',
+        'Wed': 'W',
+        'Th': 'Th',
+        'Fri': 'F',
+        'Sat': 'Sa'
+    }
 
     t = threading.current_thread()
     while getattr(t, "do_run", True):
         now = datetime.now().time().strftime('%H:%M')
+        day = dayLookup[datetime.now().date().strftime('%a')]
         for timestr in times:
-            portionTime, portionCnt = timestr.split('-')
+            portionTime, portionCnt, portionDays = timestr.split('-')
             portionCnt = int(portionCnt)
-            if now == portionTime:
+            if now == portionTime and day in portionDays:
                 with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
                     futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
                     for future in futures:

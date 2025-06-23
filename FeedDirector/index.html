@@ -34,6 +34,11 @@
             float: right;
 			margin-left: auto;
         }
+        .itemBox {
+            border: 1px solid aqua;
+            padding: 3px;
+            flex-direction: column;
+        }
         #feeders button {
             float: right;
 			margin-left: auto;
@@ -196,9 +201,9 @@
         }
     }
 
-    async function removeTime(time24h, item) {
+    async function removeTime(timeValue, item) {
         const data = new URLSearchParams();
-        data.append('time', time24h);
+        data.append('time', timeValue);
 
         try {
             const response = await fetch('/removeTime', {
@@ -227,30 +232,118 @@
         }
     }
 
+    function calculateDaysFromButtons(timeValue) {
+        var [hm, cnt, days] = timeValue.split("-");
+        var itemBoxID = hm + '-' + cnt;
+
+        var buttons = document.querySelectorAll('div[id="' + itemBoxID + '"] > div:nth-child(2) > button')
+        var calcDays = ''
+
+        buttons.forEach(btn => {
+            if (btn.style.backgroundColor == 'green') calcDays += btn.textContent;
+        })
+    }
     
-    function insertTime(time24hr) {
-        var [hm, cnt] = time24hr.split("-"); cnt = parseInt(cnt);
+    async function modifyDaysForTime(timeValue) {
+        var calcDays = calculateDaysFromButtons(timeValue);
+
+        const data = new URLSearchParams();
+        data.append('time', timeValue); //includes old days data, backend ignores them
+        data.append('newdays', calcDays);
+
+        try {
+            const response = await fetch('/removeTime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result) {
+                item.remove();
+                console.log('Modified feeding time days successfully');
+            } else {
+                console.error('Error modifying feeding time days:', result);
+            }
+            return result;
+        } catch (error) {
+            console.error('Error modifying feeding time days:', error);
+            return false;
+        }
+    }
+
+    
+    function insertTime(timeValue) {
+        var [hm, cnt, days] = timeValue.split("-");
+        var itemBoxID = hm + '-' + cnt;
+        
+        cnt = parseInt(cnt);
         var [h, m] = hm.split(":"); h = parseInt(h); m = parseInt(m); 
         var ampmTime = ((h % 12) ? (h % 12) : 12) + ":" + (((m / 10) < 1) ? ('0' + m) : m) + ((h >= 12) ? ' PM' : ' AM');
         
-        if (time24hr) {
-            var item = document.createElement('div');
+        if (timeValue) {
+            var itemBox = document.createElement('div');
+            itemBox.id = itemBoxID; itemBox.class = 'itemBox';
             
+            var item1 = document.createElement('div');
+
             var timeSpan = document.createElement('span');
             timeSpan.textContent = ampmTime + '   [' + cnt + 'x]';
+            if (h > 9) timeSpan.textContent = ' ' + timeSpan.textContent;
             timeSpan.classList.add('digital-time');
 
             var removeButton = document.createElement('button');
             removeButton.textContent = 'Remove';
             removeButton.onclick = function() {
-                removeTime(time24hr, item);
+                removeTime(timeValue, item);
             };
 
-            item.appendChild(timeSpan);
-            item.appendChild(removeButton);
-            document.getElementById('feedingTimes').appendChild(item);
+            item1.appendChild(timeSpan);
+            item1.appendChild(removeButton);
+
+            var item2 = document.createElement('div');
+
+            ['Su','M','Tu','W','Th','F','Sa'].forEach(day => {
+                var dayButton = document.createElement('button');
+                dayButton.textContent = day;
+
+                if (days.includes(day)) {
+                    dayButton.style.backgroundColor = 'green';
+                } else {
+                    dayButton.style.backgroundColor = 'red';
+                }
+
+                dayButton.onclick = function() {
+                    if (dayButton.style.backgroundColor == 'green') {
+                        dayButton.style.backgroundColor = 'red';
+
+                    } else if (dayButton.style.backgroundColor == 'red') {
+                        dayButton.style.backgroundColor = 'green';
+                    }
+                }
+
+                item2.appendChild(dayButton);
+            })
+            
+            itemBox.appendChild(item1);
+            itemBox.appendChild(item2);
+
+            document.getElementById('feedingTimes').appendChild(itemBox);
         }
     }
+
+    /*
+    <div style="border: 1px solid aqua;padding: 3px;flex-direction: column;">
+        <div><span class="digital-time"> 5:00 PM   [3x]</span><button>Remove</button></div>
+        <div><button>Su</button><button>M</button><button>Tu</button><button>W</button><button>Th</button><button>F</button><button>Sa</button></div>
+    </div>
+    */
 
     async function getEventLog() {
         try {
@@ -300,7 +393,8 @@
         document.querySelector('#addTimeBtn').onclick = async (e) => {
             var timeInput = document.getElementById('timeInput');
             var portionCnt = document.getElementById('portionCnt');
-            var timeValue = timeInput.value + '-' + portionCnt.value;
+            var defaultDays = 'SuMTuWThFSa';
+            var timeValue = timeInput.value + '-' + portionCnt.value + '-' + defaultDays;
             
             if (timeValue) {
                 await addTime(timeValue);
