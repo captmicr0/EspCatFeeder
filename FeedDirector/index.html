@@ -304,7 +304,7 @@
 
             var timeSpan = document.createElement('span');
             timeSpan.textContent = ampmTime + '   [' + cnt + 'x]';
-            if (h > 9) timeSpan.textContent = ' ' + timeSpan.textContent;
+            if (9 > (h%12)) timeSpan.textContent = ' ' + timeSpan.textContent;
             timeSpan.classList.add('digital-time');
 
             var removeButton = document.createElement('button');
