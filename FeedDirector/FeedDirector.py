@@ -49,7 +49,7 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
 # File to store mappings persistently
-MAPPINGS_FILE = 'feederdata.json'
+MAPPINGS_FILE = os.environ.get('FEEDER_DATA', 'feederdata.json')
 
 # List to store all feeders
 feeders = []
@@ -202,7 +202,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             newdays = params.get('newdays', [''])[0]
 
             time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
-            
+
             already_exist = any([True for x in times if x.startswith(time)])
             if already_exist:
                 idx = [i for i, x in enumerate(times) if x.startswith(time)][0]
@@ -213,7 +213,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
 
-            self.wfile.write(bytes(json.dumps(already_exist), "utf-8"))
+            self.wfile.write(bytes(json.dumps('-'.join([time, newdays]) in times), "utf-8"))
         
         elif self.path == '/getEventLog':
             self.send_response(200)
@@ -265,6 +265,15 @@ def feedLoop():
                 results.append("[ERROR]")
         return feeder, results
     
+    def test_request(feeder, portionCnt):
+        results = []
+        for _ in range(portionCnt):
+            try:
+                results.append(f"[???,TEST]")
+            except:
+                results.append("[ERROR]")
+        return feeder, results
+    
     dayLookup = {
         'Sun': 'Su',
         'Mon': 'M',
@@ -280,11 +289,18 @@ def feedLoop():
         now = datetime.now().time().strftime('%H:%M')
         day = dayLookup[datetime.now().date().strftime('%a')]
         for timestr in times:
-            portionTime, portionCnt, portionDays = timestr.split('-')
+            parts = timestr.split('-')
+
+            portionTime, portionCnt = parts[0], parts[1]
             portionCnt = int(portionCnt)
-            if now == portionTime and day in portionDays:
+
+            portionDays = 'SuMTuWThFSa'
+            if len(parts) == 3:
+                portionDays = parts[2]
+
+            if (now == portionTime) and (day in portionDays):
                 with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
-                    futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
+                    futures = [executor.submit(test_request, feeder, portionCnt) for feeder in feeders]
                     for future in futures:
                         feeder, results = future.result()
                         event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"

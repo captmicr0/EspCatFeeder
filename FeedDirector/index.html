@@ -9,19 +9,10 @@
             font-family: 'Courier New', Courier, monospace;
             font-size: 24px;
             letter-spacing: 2px;
-            margin-right: 10px;
         }
 		button, #portionCnt {
             font-size: 20px;
             letter-spacing: 2px;
-		}
-		#portionCnt {
-            display: flex;
-            margin-right: 10px;
-		}
-		#feedPortion {
-			justify-content: center;
-			width: 100%;
 		}
 		body, #feedPortion, #feedingTimes, #feeders, #addFeedingTime {
 			max-width: 400px;
@@ -30,14 +21,31 @@
             margin-bottom: 10px;
             display: flex;
         }
-        #feedingTimes button {
+		#feedPortion {
+			justify-content: center;
+			width: 100%;
+		}
+        #addFeedingTime {
+            justify-content: space-between;
+        }
+        #portionCnt {
+            margin-right: 8px;
+        }
+        #feedingTimes > div.itemBox > div:nth-child(1) > button {
             float: right;
 			margin-left: auto;
         }
-        .itemBox {
-            border: 1px solid aqua;
+        #feedingTimes > div.itemBox {
+            border: 1px solid rgb(68, 82, 82);
             padding: 3px;
             flex-direction: column;
+        }
+        #feedingTimes > div.itemBox > div:nth-child(2) > button {
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            margin: auto;
         }
         #feeders button {
             float: right;
@@ -242,17 +250,19 @@
         buttons.forEach(btn => {
             if (btn.style.backgroundColor == 'green') calcDays += btn.textContent;
         })
+
+        return calcDays;
     }
     
     async function modifyDaysForTime(timeValue) {
         var calcDays = calculateDaysFromButtons(timeValue);
 
         const data = new URLSearchParams();
-        data.append('time', timeValue); //includes old days data, backend ignores them
+        data.append('time', timeValue); //might include old days data, backend ignores them
         data.append('newdays', calcDays);
 
         try {
-            const response = await fetch('/removeTime', {
+            const response = await fetch('/modifyDaysForTime', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -266,7 +276,6 @@
 
             const result = await response.json();
             if (result) {
-                item.remove();
                 console.log('Modified feeding time days successfully');
             } else {
                 console.error('Error modifying feeding time days:', result);
@@ -289,7 +298,7 @@
         
         if (timeValue) {
             var itemBox = document.createElement('div');
-            itemBox.id = itemBoxID; itemBox.class = 'itemBox';
+            itemBox.id = itemBoxID; itemBox.classList.add('itemBox');
             
             var item1 = document.createElement('div');
 
@@ -319,12 +328,17 @@
                     dayButton.style.backgroundColor = 'red';
                 }
 
-                dayButton.onclick = function() {
+                dayButton.onclick = async function(event) {
                     if (dayButton.style.backgroundColor == 'green') {
                         dayButton.style.backgroundColor = 'red';
-
+                        const result = await modifyDaysForTime(event.target.parentNode.parentNode.id);
+                        // change back to original if failed
+                        if (!result) dayButton.style.backgroundColor = 'green';
                     } else if (dayButton.style.backgroundColor == 'red') {
                         dayButton.style.backgroundColor = 'green';
+                        const result = await modifyDaysForTime(event.target.parentNode.parentNode.id);
+                        // change back to original if failed
+                        if (!result) dayButton.style.backgroundColor = 'red';
                     }
                 }
 
@@ -390,6 +404,10 @@
             }
         };
 
+        document.querySelector('#portionCnt').addEventListener('input', function() {
+            if (this.value > parseInt(this.max)) this.value = parseInt(this.max);
+        });
+
         document.querySelector('#addTimeBtn').onclick = async (e) => {
             var timeInput = document.getElementById('timeInput');
             var portionCnt = document.getElementById('portionCnt');
@@ -437,10 +455,11 @@
 	<hr/>
 	<div id="addFeedingTime">
 		<input type="time" id="timeInput" class="digital-time" required></input>
-		<input type="number" id="portionCnt" min="1" max="9" step="1" value="1" required></input>
+		<input type="number" id="portionCnt" min="1" max="3" step="1" value="1" required></input>
 		<button id="addTimeBtn">Add Time</button>
 	</div>
 	
+	<hr/>
     <h2>Scheduled Feeding Times:</h2>
     <div id="feedingTimes"></div>
 	<br/>
@@ -456,6 +475,7 @@
 	<div id="feeders"></div>
 	<br/>
 
+	<hr/>
     <h2>Event Log:</h2>
 	<div id="events"></div>
 	<br/>
