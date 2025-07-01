@@ -92,6 +92,16 @@ def save_data():
         logger.info("[*] Feeders and times saved to file.")
     fileEventHandler.is_self_writing = False
 
+def send_request(feeder, portionCnt):
+    results = []
+    for _ in range(portionCnt):
+        try:
+            response = requests.get(feeder.strip('/') + '/feedPortion')
+            results.append(f"[{response.status_code},{response.text}]")
+        except:
+            results.append("[ERROR]")
+    return feeder, results
+
 class RequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
@@ -144,6 +154,27 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
             self.wfile.write(bytes(json.dumps(already_exist), "utf-8"))
+        
+        elif self.path == '/manualFeed':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            params = urllib.parse.parse_qs(post_data)
+
+            portionCnt = int(params.get('portions', ['0'])[0])
+
+            with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
+                futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
+                for future in futures:
+                    feeder, results = future.result()
+                    event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
+                    logger.info(event_info)
+                    event_log.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' - ' + event_info)
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+
+            self.wfile.write(bytes(json.dumps(True), "utf-8"))
         
         elif self.path == '/getTimes':
             self.send_response(200)
@@ -255,15 +286,6 @@ class RequestHandler(BaseHTTPRequestHandler):
 def feedLoop():
     global feeders, times
 
-    def send_request(feeder, portionCnt):
-        results = []
-        for _ in range(portionCnt):
-            try:
-                response = requests.get(feeder.strip('/') + '/feedPortion')
-                results.append(f"[{response.status_code},{response.text}]")
-            except:
-                results.append("[ERROR]")
-        return feeder, results
     
     dayLookup = {
         'Sun': 'Su',

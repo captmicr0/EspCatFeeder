@@ -388,7 +388,7 @@
     
     document.addEventListener('DOMContentLoaded', async function() {
         document.querySelector('#feedPortion').onclick = async (e) => {
-            try {
+            /*try {
                 const feeders = await getFeeders();
                 for (const item of feeders) {
                     try {
@@ -404,6 +404,34 @@
                 }
             } catch (error) {
                 console.error('Error getting feeders:', error);
+            }*/
+
+            const data = new URLSearchParams();
+            data.append('portions', 1);
+
+            try {
+                const response = await fetch('/manualFeed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: data
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result) {
+                    console.log('Manual feed successful');
+                } else {
+                    console.error('Error during manual feed:', result);
+                }
+                return result;
+            } catch (error) {
+                console.error('Error during manual feed:', error);
+                return false;
             }
         };
 
