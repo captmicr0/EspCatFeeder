@@ -265,15 +265,6 @@ def feedLoop():
                 results.append("[ERROR]")
         return feeder, results
     
-    def test_request(feeder, portionCnt):
-        results = []
-        for _ in range(portionCnt):
-            try:
-                results.append(f"[???,TEST]")
-            except:
-                results.append("[ERROR]")
-        return feeder, results
-    
     dayLookup = {
         'Sun': 'Su',
         'Mon': 'M',
@@ -300,7 +291,7 @@ def feedLoop():
 
             if (now == portionTime) and (day in portionDays):
                 with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
-                    futures = [executor.submit(test_request, feeder, portionCnt) for feeder in feeders]
+                    futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
                     for future in futures:
                         feeder, results = future.result()
                         event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
