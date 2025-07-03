@@ -326,6 +326,9 @@ def feedLoop():
             time.sleep(5)
         except Exception as e:
             logger.info(f"[*] feedLoop error: {e}")
+            secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
+            time.sleep(secondsToNextM + 10)
+            logger.info(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
 
 def runHTTPServer(server):
     server.serve_forever()
