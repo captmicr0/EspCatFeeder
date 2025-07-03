@@ -299,30 +299,33 @@ def feedLoop():
 
     t = threading.current_thread()
     while getattr(t, "do_run", True):
-        now = datetime.now().time().strftime('%H:%M')
-        day = dayLookup[datetime.now().date().strftime('%a')]
-        for timestr in times:
-            parts = timestr.split('-')
+        try:
+            now = datetime.now().time().strftime('%H:%M')
+            day = dayLookup[datetime.now().date().strftime('%a')]
+            for timestr in times:
+                parts = timestr.split('-')
 
-            portionTime, portionCnt = parts[0], parts[1]
-            portionCnt = int(portionCnt)
+                portionTime, portionCnt = parts[0], parts[1]
+                portionCnt = int(portionCnt)
 
-            portionDays = 'SuMTuWThFSa'
-            if len(parts) == 3:
-                portionDays = parts[2]
+                portionDays = 'SuMTuWThFSa'
+                if len(parts) == 3:
+                    portionDays = parts[2]
 
-            if (now == portionTime) and (day in portionDays):
-                with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
-                    futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
-                    for future in futures:
-                        feeder, results = future.result()
-                        event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
-                        logger.info(event_info)
-                        event_log.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' - ' + event_info)
-                secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
-                logger.info(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
-                time.sleep(secondsToNextM + 10)
-        time.sleep(5)
+                if (now == portionTime) and (day in portionDays):
+                    with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
+                        futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
+                        for future in futures:
+                            feeder, results = future.result()
+                            event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
+                            logger.info(event_info)
+                            event_log.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' - ' + event_info)
+                    secondsToNextM = 60 - int(datetime.now().time().strftime('%S'))
+                    logger.info(f"Sleeping {secondsToNextM}+10 seconds (till next minute)...")
+                    time.sleep(secondsToNextM + 10)
+            time.sleep(5)
+        except Exception as e:
+            logger.info(f"[*] feedLoop error: {e}")
 
 def runHTTPServer(server):
     server.serve_forever()
