@@ -292,7 +292,7 @@ def feedLoop():
         'Mon': 'M',
         'Tue': 'Tu',
         'Wed': 'W',
-        'Th': 'Th',
+        'Thu': 'Th',
         'Fri': 'F',
         'Sat': 'Sa'
     }
