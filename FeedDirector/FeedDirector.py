@@ -190,7 +190,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             
             time = params.get('time', [''])[0]
 
-            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
+            timeParts = time.split('-')
+
+            if len(timeParts) < 3:
+                timeParts = timeParts[0:2]
+                timeParts.append('SuMTuWThFSa')
+
+            time = '-'.join(timeParts)
 
             already_exist = any([True for x in times if x.startswith(time)])
             if not already_exist:
