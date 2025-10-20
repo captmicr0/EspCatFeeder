@@ -192,9 +192,15 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             timeParts = time.split('-')
 
-            if len(timeParts) < 3:
-                timeParts = timeParts[0:2]
+            if len(timeParts) == 3:
+                timeParts = timeParts[:3]
+                timeParts.append(','.join([fdr[-3:] for fdr in feeders]))
+            
+            if len(timeParts) == 2:
+                timeParts = timeParts[:2]
                 timeParts.append('SuMTuWThFSa')
+                timeParts.append(','.join([fdr[-3:] for fdr in feeders]))
+            
 
             time = '-'.join(timeParts)
 
@@ -216,7 +222,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             
             time = params.get('time', [''])[0]
 
-            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
+            time = '-'.join(time.split('-')[:2]) # remove days/feeders from time (safely, incase no days are included)
             
             already_exist = any([True for x in times if x.startswith(time)])
             if already_exist:
@@ -238,19 +244,49 @@ class RequestHandler(BaseHTTPRequestHandler):
             time = params.get('time', [''])[0]
             newdays = params.get('newdays', [''])[0]
 
-            time = '-'.join(time.split('-')[0:2]) # remove days from time (safely, incase no days are included)
+            time = '-'.join(time.split('-')[:2]) # remove days/feeders from time (safely, incase no days are included)
+
+            success = False
 
             already_exist = any([True for x in times if x.startswith(time)])
             if already_exist:
                 idx = [i for i, x in enumerate(times) if x.startswith(time)][0]
-                times[idx] = '-'.join([time, newdays])
+                fdrs = times[idx].split('-')[-1] # get existing feeders
+                times[idx] = '-'.join([time, newdays, fdrs])
                 save_data()
+                success = '-'.join([time, newdays, fdrs]) in times
 
             self.send_response(200)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
 
-            self.wfile.write(bytes(json.dumps('-'.join([time, newdays]) in times), "utf-8"))
+            self.wfile.write(bytes(json.dumps(success), "utf-8"))
+        
+        elif self.path == '/modifyFdrsForTime':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            params = urllib.parse.parse_qs(post_data)
+            
+            time = params.get('time', [''])[0]
+            newfdrs = params.get('newfdrs', [''])[0]
+
+            time = '-'.join(time.split('-')[:2]) # remove days/feeders from time (safely, incase no days are included)
+
+            success = False
+
+            already_exist = any([True for x in times if x.startswith(time)])
+            if already_exist:
+                idx = [i for i, x in enumerate(times) if x.startswith(time)][0]
+                days = times[idx].split('-')[-2] # get existing days
+                times[idx] = '-'.join([time, days, newfdrs])
+                save_data()
+                success = '-'.join([time, days, newfdrs]) in times
+
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+
+            self.wfile.write(bytes(json.dumps(success), "utf-8"))
         
         elif self.path == '/getEventLog':
             self.send_response(200)

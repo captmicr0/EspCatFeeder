@@ -50,6 +50,16 @@
         #feedingTimes > div.itemBox > div:nth-child(2) {
             margin-bottom: auto;
         }
+        #feedingTimes > div.itemBox > div:nth-child(3) > button {
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            margin: auto;
+        }
+        #feedingTimes > div.itemBox > div:nth-child(3) {
+            margin-bottom: auto;
+        }
         #feeders button {
             float: right;
 			margin-left: auto;
@@ -257,6 +267,20 @@
         return calcDays;
     }
     
+    function calculateFdrsFromButtons(timeValue) {
+        var [hm, cnt, days, fdrs] = timeValue.split("-");
+        var itemBoxID = hm + '-' + cnt;
+
+        var buttons = document.querySelectorAll('div[id="' + itemBoxID + '"] > div:nth-child(3) > button')
+        var calcFdrsList = []
+
+        buttons.forEach(btn => {
+            if (btn.style.backgroundColor == 'green') calcFdrsList.push(btn.textContent);
+        })
+
+        return calcFdrsList.join(',');
+    }
+
     async function modifyDaysForTime(timeValue) {
         var calcDays = calculateDaysFromButtons(timeValue);
 
@@ -290,9 +314,41 @@
         }
     }
 
+    async function modifyFdrsForTime(timeValue) {
+        var calcFdrs = calculateFdrsFromButtons(timeValue);
+
+        const data = new URLSearchParams();
+        data.append('time', timeValue); //might include old days data, backend ignores them
+        data.append('newfdrs', calcFdrs);
+
+        try {
+            const response = await fetch('/modifyFdrsForTime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: data
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result) {
+                console.log('Modified feeding time feeders successfully');
+            } else {
+                console.error('Error modifying feeding time feeders:', result);
+            }
+            return result;
+        } catch (error) {
+            console.error('Error modifying feeding time feeders:', error);
+            return false;
+        }
+    }
     
     function insertTime(timeValue) {
-        var [hm, cnt, days] = timeValue.split("-");
+        var [hm, cnt, days, feedersRaw] = timeValue.split("-");
         var itemBoxID = hm + '-' + cnt;
         
         cnt = parseInt(cnt);
@@ -346,10 +402,43 @@
                 }
 
                 item2.appendChild(dayButton);
-            })
+            });
+
+            var item3 = document.createElement('div');
+
+            var feedersSplit = feedersRaw.split(',');
+            document.querySelectorAll('#feeders > div > span').forEach(fdrspan => {
+                var last3 = fdrspan.innerText.slice(-3);
+
+                var fdrButton = document.createElement('button');
+                fdrButton.textContent = last3;
+
+                if (feedersSplit.some(item => item.endsWith(last3))) {
+                    fdrButton.style.backgroundColor = 'green';
+                } else {
+                    fdrButton.style.backgroundColor = 'red';
+                }
+
+                fdrButton.onclick = async function(event) {
+                    if (fdrButton.style.backgroundColor == 'green') {
+                        fdrButton.style.backgroundColor = 'red';
+                        const result = await modifyFdrsForTime(event.target.parentNode.parentNode.id);
+                        // change back to original if failed
+                        if (!result) fdrButton.style.backgroundColor = 'green';
+                    } else if (fdrButton.style.backgroundColor == 'red') {
+                        fdrButton.style.backgroundColor = 'green';
+                        const result = await modifyFdrsForTime(event.target.parentNode.parentNode.id);
+                        // change back to original if failed
+                        if (!result) fdrButton.style.backgroundColor = 'red';
+                    }
+                }
+
+                item3.appendChild(fdrButton);
+            });
             
             itemBox.appendChild(item1);
             itemBox.appendChild(item2);
+            itemBox.appendChild(item3);
 
             document.getElementById('feedingTimes').appendChild(itemBox);
         }
@@ -359,6 +448,7 @@
     <div style="border: 1px solid aqua;padding: 3px;flex-direction: column;">
         <div><span class="digital-time"> 5:00 PM   [3x]</span><button>Remove</button></div>
         <div><button>Su</button><button>M</button><button>Tu</button><button>W</button><button>Th</button><button>F</button><button>Sa</button></div>
+        <div><button>131</button><br/><button>132</button><br>/<button>133</button></div>
     </div>
     */
 
