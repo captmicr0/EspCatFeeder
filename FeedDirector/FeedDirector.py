@@ -353,10 +353,16 @@ def feedLoop():
                 portionDays = 'SuMTuWThFSa'
                 if len(parts) == 3:
                     portionDays = parts[2]
+                
+                portionFdrs = [fdr[-3:] for fdr in feeders]
+                if len(parts) == 4:
+                    portionFdrs = parts[3].split(',')
+                
+                feedersForTime = [fdr for fdr in feeders if fdr.endswith(portionFdrs)]
 
                 if (now == portionTime) and (day in portionDays):
-                    with ThreadPoolExecutor(max_workers=len(feeders)) as executor:
-                        futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feeders]
+                    with ThreadPoolExecutor(max_workers=len(feedersForTime)) as executor:
+                        futures = [executor.submit(send_request, feeder, portionCnt) for feeder in feedersForTime]
                         for future in futures:
                             feeder, results = future.result()
                             event_info = f"Feeding [{feeder}] {portionCnt} portions... {', '.join(results)  + '.'}"
