@@ -48,7 +48,7 @@
             margin: auto;
         }
         #feedingTimes > div.itemBox > div:nth-child(2) {
-            margin-bottom: auto;
+            /* margin-bottom: auto; */
         }
         #feedingTimes > div.itemBox > div:nth-child(3) > button {
             color: white;
@@ -194,7 +194,7 @@
         const data = new URLSearchParams();
         data.append('time', timeValue);
 
-        try {
+        //try {
             const response = await fetch('/addTime', {
                 method: 'POST',
                 headers: {
@@ -216,10 +216,10 @@
                 console.error('Error adding time:', result);
             }
             return result;
-        } catch (error) {
+        /*} catch (error) {
             console.error('Error adding time:', error);
             return false;
-        }
+        }*/
     }
 
     async function removeTime(timeValue, item) {
@@ -348,6 +348,7 @@
     }
     
     function insertTime(timeValue) {
+        console.log("inserTime('" + timeValue + "')")
         var [hm, cnt, days, feedersRaw] = timeValue.split("-");
         var itemBoxID = hm + '-' + cnt;
         
@@ -533,7 +534,13 @@
             var timeInput = document.getElementById('timeInput');
             var portionCnt = document.getElementById('portionCnt');
             var defaultDays = 'SuMTuWThFSa';
-            var timeValue = timeInput.value + '-' + portionCnt.value + '-' + defaultDays;
+            var defaultsFdrsList = [];
+            document.querySelectorAll('#feeders > div > span').forEach(fdrspan => {
+                var last3 = fdrspan.innerText.slice(-3);
+                defaultsFdrsList.push(last3);
+            });
+            var defaultsFdrs = defaultsFdrsList.join(',');
+            var timeValue = timeInput.value + '-' + portionCnt.value + '-' + defaultDays + '-' + defaultsFdrs;
             
             if (timeValue) {
                 await addTime(timeValue);

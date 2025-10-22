@@ -358,7 +358,7 @@ def feedLoop():
                 if len(parts) == 4:
                     portionFdrs = parts[3].split(',')
                 
-                feedersForTime = [fdr for fdr in feeders if fdr.endswith(portionFdrs)]
+                feedersForTime = [fdr for fdr in feeders if fdr.endswith(tuple(portionFdrs))]
 
                 if (now == portionTime) and (day in portionDays):
                     with ThreadPoolExecutor(max_workers=len(feedersForTime)) as executor:
