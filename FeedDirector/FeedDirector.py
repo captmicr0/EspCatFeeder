@@ -351,11 +351,11 @@ def feedLoop():
                 portionCnt = int(portionCnt)
 
                 portionDays = 'SuMTuWThFSa'
-                if len(parts) == 3:
+                if len(parts) >= 3:
                     portionDays = parts[2]
                 
                 portionFdrs = [fdr[-3:] for fdr in feeders]
-                if len(parts) == 4:
+                if len(parts) >= 4:
                     portionFdrs = parts[3].split(',')
                 
                 feedersForTime = [fdr for fdr in feeders if fdr.endswith(tuple(portionFdrs))]
